@@ -23,7 +23,7 @@ def _calc_dynamic_intervals(start_interval, dynamic_interval_list):
 
 class EvalHook(BaseEvalHook):
 
-    def __init__(self, *args, dynamic_intervals=None, **kwargs):
+    def __init__(self, *args, dynamic_intervals=None, patience=5, **kwargs):
         super(EvalHook, self).__init__(*args, **kwargs)
         self.latest_results = None
 
@@ -31,6 +31,10 @@ class EvalHook(BaseEvalHook):
         if self.use_dynamic_intervals:
             self.dynamic_milestones, self.dynamic_intervals = \
                 _calc_dynamic_intervals(self.interval, dynamic_intervals)
+
+        self.max_patience = patience
+        self.patience = 0
+        self.best_score = -1
 
     def _decide_interval(self, runner):
         if self.use_dynamic_intervals:
@@ -65,6 +69,17 @@ class EvalHook(BaseEvalHook):
         # the best checkpoint
         if self.save_best and key_score:
             self._save_ckpt(runner, key_score)
+
+        # implement patience
+        self.best_score = max(key_score, self.best_score)
+        if key_score != self.best_score:
+            self.patience += 1
+            print(f"Remaining patience is {self.max_patience - self.patience}, current ap: {key_score} ===> best ap: {self.best_score}")
+            if self.patience >= self.max_patience:
+                print(f"stop training...")
+                runner._max_epochs = runner.epoch
+        else:
+            self.patience = 0
 
 
 # Note: Considering that MMCV's EvalHook updated its interface in V1.3.16,
